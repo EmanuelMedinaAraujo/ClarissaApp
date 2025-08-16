@@ -1,50 +1,80 @@
-# Welcome to your Expo app 👋
+# Clarissa App Outline
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This app is for my girlfriend Clarissa developed by me (Emanuel).
+It's purpose is to assist her with various tasks.
+In the long term, I hope to add many features that will make her life easier and more enjoyable.
 
-## Get started
+## Privacy
+A core principle of the app is to prioritize her privacy and security.
+When using the app, all data should be stored encrypted locally and never shared with third parties.
 
-1. Install dependencies
+## MVP Features
+The initial version of the app will focus on a few key features:
+ - **Privacy**: Ensure all features are built with privacy in mind from the ground up.
+ - **Color themes**: Allow customization of the app's appearance with a dark, light, and red theme.
+ - **Menstruation Tracker**: Help Clarissa track her menstrual cycle and symptoms.
+ - **Pill Reminder**: Send reminders for taking birth control pills.
+ - **Usability**: Ensure the app is user-friendly and easy to navigate with intuitive controls and clear information. The design should be visually appealing and accessible.
 
-   ```bash
-   npm install
-   ```
+### Tabs
+Today, Calendar, Profile
 
-2. Start the app
 
-   ```bash
-   npx expo start
-   ```
+### Menstruation Calendar
+The menstruation tracker will allow Clarissa to log her menstrual cycle and symptoms.
+For this, a tab should be available in the app displaying a user-friendly calendar view. (Calendar)
 
-In the output, you'll find options to open the app in a
+When she taps on a date, she can input her blood flow intensity. Additionally, toggle buttons with icons should be available to indicate symptoms such as cramps, vomiting, headaches or mood changes.
+A notes field should als be available.
+After confirming, the data will be stored encrypted locally.
+An entry should include the date, blood flow intensity and further recorded info. The data should be stored sorted with the date and time.
+The calendar should visualize on which days the birth control pill was taken and will be taken in the future.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Pill Reminder
+The pill reminder feature will allow Clarissa to set reminders for taking her birth control pills in the Profile Tab.
+The app will send notifications to remind her to take her pill.
+It should be possible to customize the pill cycle length and reminder times.
+It should also be possible to snooze reminders.
+Furthermore, she should be able to set different times for each day in the week.
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Today Tab
+The Today Tab will provide an overview of her current status.
+It will display the current date and the reminders for taking the pill.
+It should be possible to quickly track the intake of the pill.
+Furthermore, the status of her menstrual cycle should be visible at a glance.
+It should also be displayed when the next bleeding phase is expected.
+An indicator will show whether she is currently in her fertile window.
 
-## Get a fresh project
 
-When you're ready, run:
+## Future Features (not relevant now/Ignore for now)
+In the future, I plan to add more features such as:
+ - **Milestone View**: Provide a way to visualize and gamify the relationship between me and Clarissa.
+ - **Health Insights**: Analyze health data to provide insights and recommendations for improving well-being.
+ - **Virtual Roses**: Allow Clarissa to receive virtual roses from me as a form of appreciation and liking.
+ - **Connect Partner**: Enable Clarissa to connect with me through the app, allowing us to share milestones and current point of the menstrual cycle.
+ - **Integration with Other Apps**: Allow Clarissa to connect the app with other tools she uses for a seamless experience.
+ - **Lock**: Lock the app with a PIN or biometric authentication for added security.
 
-```bash
-npm run reset-project
-```
+# Development Environment
+This app is built using React Native and TypeScript, leveraging the Expo framework for development and deployment.
+## File structure
+### app folder
+Contains the app's navigation, which is file-based. The file structure of the app directory determines the app's navigation.
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+The app has two routes defined by two files: app/(tabs)/index.tsx and app/(tabs)/explore.tsx. The layout file in app/(tabs)/_layout.tsx sets up the tab navigator.
+### assets folder
+The assets directory contains adaptive-icon.png used for Android and an icon.png used for iOS as app icons. It also contains splash.png which is an image for the project's splash screen and a favicon.png if the app runs in a browser.
+### components folder
+Contains React Native components, like ThemedText.tsx, which creates text elements that use the app's color scheme in light and dark modes.
+### constants folder
+Contains Colors.ts, which contains a list of color values throughout the app.
+### hooks folder
+Contains React Hooks, which allows sharing common behavior between components. For example, useThemeColor() is a hook that returns a color based on the current theme.
+### scripts folder
+Contains reset-project.js, which can be run with npm run reset-project. This script will move the app directory to app-example, and create a new app directory with an index.tsx file.
+### app.json
+Contains configuration options for the project and is called the app config. These options change the behavior of your project while developing, building, submitting, and updating your app.
+### package.json
+The package.json file contains the project's dependencies, scripts, and metadata. Anytime a new dependency is added to your project, it will be added to this file.
+### tsconfig.json
+Contains the rules that TypeScript will use to enforce type safety throughout the project.
