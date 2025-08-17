@@ -1,50 +1,57 @@
+import { ThemeContext } from '@/app/_layout';
+import { Colors } from '@/constants/Colors';
+import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useContext } from 'react';
 import { Platform } from 'react-native';
 
-// If you have custom tab components, import them here
-// import { HapticTab } from '@/components/HapticTab';
-// import TabBarBackground from '@/components/ui/TabBarBackground';
-// import { Colors } from '@/constants/Colors';
-// import { useColorScheme } from '@/hooks/useColorScheme';
-
 export default function TabLayout() {
-	// Uncomment and use colorScheme if you have theme support
-	// const colorScheme = useColorScheme();
-
-	return (
-		<Tabs
-			screenOptions={{
-				// tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
-				headerShown: false,
-				// tabBarButton: HapticTab,
-				// tabBarBackground: TabBarBackground,
-				tabBarStyle: Platform.select({
-					ios: {
-						position: 'absolute',
-					},
-					default: {},
-				}),
-			}}>
+	const themeContext = useContext(ThemeContext);
+	const theme = themeContext?.effectiveTheme ?? 'light';
+		const tabBarActiveTintColor = Colors[theme].tabIconSelected;
+		const tabBarInactiveTintColor = Colors[theme].tabIconDefault;
+		const tabBarBackground = Colors[theme].background;
+		return (
+			<Tabs
+				screenOptions={{
+					headerShown: false,
+					tabBarActiveTintColor,
+					tabBarInactiveTintColor,
+					tabBarStyle: Platform.select({
+						ios: {
+							position: 'absolute',
+							backgroundColor: tabBarBackground,
+						},
+						default: {
+							backgroundColor: tabBarBackground,
+						},
+					}),
+				}}>
 			<Tabs.Screen
 				name="today"
 				options={{
 					title: 'Today',
-					// tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+					tabBarIcon: ({ color, size }) => (
+						<MaterialCommunityIcons name="calendar-today" color={color} size={size ?? 28} />
+					),
 				}}
 			/>
 			<Tabs.Screen
 				name="calendar"
 				options={{
 					title: 'Calendar',
-					// tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+					tabBarIcon: ({ color, size }) => (
+						<MaterialCommunityIcons name="calendar-month" color={color} size={size ?? 28} />
+					),
 				}}
 			/>
 			<Tabs.Screen
 				name="profile"
 				options={{
 					title: 'Profile',
-					// tabBarIcon: ({ color }) => <IconSymbol size={28} name="person" color={color} />,
+					tabBarIcon: ({ color, size }) => (
+						<MaterialIcons name="person" color={color} size={size ?? 28} />
+					),
 				}}
 			/>
 		</Tabs>

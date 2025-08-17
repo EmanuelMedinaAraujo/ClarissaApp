@@ -1,11 +1,13 @@
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet } from 'react-native';
 
 export default function TodayScreen() {
 	return (
-		<View style={styles.container}>
-			<Text style={styles.text}>Today Tab Placeholder</Text>
-		</View>
+		<ThemedView style={styles.container}>
+			<ThemedText style={styles.text}>Today Tab Placeholder</ThemedText>
+		</ThemedView>
 	);
 }
 
@@ -14,10 +16,8 @@ const styles = StyleSheet.create({
 		flex: 1,
 		alignItems: 'center',
 		justifyContent: 'center',
-		backgroundColor: '#fff',
 	},
 	text: {
 		fontSize: 20,
-		color: '#333',
 	},
 });
