@@ -1,17 +1,14 @@
 # AI Assistant Working Rules (ClarissaApp)
 
-Purpose: Help incrementally evolve the current minimal Expo + expo-router app into the feature set described in [README.md](../README.md) without prematurely implementing future/aspirational items.
+Purpose: Help incrementally evolve the current Expo + expo-router app into the feature set described in [README.md](../README.md) without prematurely implementing future/aspirational items.
 
 ## Current Architecture Snapshot
 - Navigation: File‑system routing via expo-router. Root stack: [app/_layout.tsx](../app/_layout.tsx) declares a single stack screen for the tab group `(tabs)`.
-- Tab Navigator: [app/(tabs)/_layout.tsx](../app/(tabs)/_layout.tsx) configures 3 tabs (`today`, `calendar`, `profile`). Each tab screen file (e.g. [app/(tabs)/today.tsx](../app/(tabs)/today.tsx)) exports a simple functional component with local `StyleSheet`.
-- Example (reference) architecture lives in the scaffolded template under `app-example/` (ignored by git per [.gitignore](../.gitignore)):
-  - Theming & color utilities: `app-example/constants/Colors.ts`
-  - Reusable presentational primitives: `app-example/components/ThemedText.tsx`, `ThemedView.tsx`
-  - UI composition helpers (parallax, collapsible, haptics): `app-example/components/*`
-  - Hook patterns for theme resolution: `app-example/hooks/useThemeColor.ts`, `useColorScheme.ts`
-  - Tab UI enhancements (icons, translucent backgrounds): `app-example/components/ui/*`
-  Use these as patterns when introducing similar functionality into `components/`, `constants/`, `hooks/` in the main app.
+- Theming: ThemeContext is provided in [app/_layout.tsx](../app/_layout.tsx), supporting 'light', 'dark', 'red', and 'system' modes. The effective theme is resolved using [hooks/useColorScheme.ts](../hooks/useColorScheme.ts) and propagated via context.
+- StatusBar: Status bar style and background color are set dynamically based on the effective theme.
+- Tab Navigator: [app/(tabs)/_layout.tsx](../app/(tabs)/_layout.tsx) configures 3 tabs (`today`, `calendar`, `profile`). Tab bar colors and background are themed using color tokens from [constants/Colors.ts](../constants/Colors.ts) and the current theme context. The tab bar background is translucent, implemented via `BlurView` for iOS and a semi-transparent `View` for Android/web. Each tab screen file (e.g. [app/(tabs)/today.tsx](../app/(tabs)/today.tsx)) exports a functional component using themed primitives and local `StyleSheet`.
+- Themed Components: Use [components/ThemedText.tsx](../components/ThemedText.tsx) and [components/ThemedView.tsx](../components/ThemedView.tsx) for presentational primitives, with color resolution via theme context.
+- Example (reference) architecture lives in the scaffolded template under `app-example/` (ignored by git per [.gitignore](../.gitignore)). Use these as patterns when introducing similar functionality into `components/`, `constants/`, `hooks/` in the main app.
 
 ## Tooling & Conventions
 - TypeScript strict mode enabled: see [tsconfig.json](../tsconfig.json). Path alias `@/*` maps to repo root; prefer `import { X } from '@/components/X'` once such modules exist.
@@ -23,8 +20,9 @@ Purpose: Help incrementally evolve the current minimal Expo + expo-router app in
 ## External Dependencies in Use
 - Core runtime: Expo SDK 53 ([package.json](../package.json)) with React 19 & React Native 0.79.
 - Navigation: `expo-router` (file-based).
+- Theming: ThemeContext, useColorScheme, and color tokens from [constants/Colors.ts](../constants/Colors.ts).
 - Planned (already installed but not yet integrated in code): `expo-sqlite` (local structured storage), `expo-notifications` (local scheduling).
-- UI libs included but unused yet: `@expo/vector-icons`, `expo-blur`, `expo-image`, `react-native-reanimated` (ensure proper babel/plugin setup if introducing animations—Expo bare setup already handles basic config).
+- UI libs included: `@expo/vector-icons`, `expo-blur`, `expo-image`, `react-native-reanimated` (ensure proper babel/plugin setup if introducing animations—Expo bare setup already handles basic config).
 
 ## Incremental Feature Evolution Guidelines (Do NOT implement automatically)
 When asked to implement:
