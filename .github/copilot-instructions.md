@@ -12,7 +12,7 @@ Goal: Incrementally evolve the Expo + expo-router app toward the MVP in README.m
 - TS strict, `@/*` alias. ESLint via `eslint-config-expo`.
 - Keep screens lean; share logic via `hooks/`, pure utils in `logic/`.
 - Persist days as ISO `YYYY-MM-DD` keys; convert to local in UI.
-- Use only installed dependencies.
+- Use installed dependencies. You may ask BEFORE trying to add new ones. Please don't be afraid to ask for help or clarification.
 
 ## Menstruation tracking (Calendar)
 - UI: lightweight custom grid calendar (no heavy lib).
@@ -39,6 +39,7 @@ Goal: Incrementally evolve the Expo + expo-router app toward the MVP in README.m
 
 ## Patterns from `app-example/`
 - Themed components, `useThemeColor`, haptic tabs, translucent background.
+- 'app-example' implements best practices for various aspects of the app, including navigation, state management, and performance optimization. Look here for guidance on implementing these patterns in your own app.
 
 ## Don’t implement yet
 - Encryption, partner sharing, other future items.
