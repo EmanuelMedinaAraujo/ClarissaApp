@@ -15,7 +15,6 @@ Goal: Incrementally evolve the Expo + expo-router app toward the MVP in README.m
 - Use installed dependencies. You may ask BEFORE trying to add new ones. Please don't be afraid to ask for help or clarification.
 
 ## Menstruation tracking (Calendar)
-- UI: lightweight custom grid calendar (no heavy lib).
 - SQLite schema (5 cols exact): `date TEXT UNIQUE`, `pill_taken INTEGER`, `blood_flow INTEGER`, `symptoms INTEGER`, `notes TEXT`.
 - Storage service (async, no global state):
    - `loadAllEntries()`, `getEntryByData(date)`, `listEntriesInRange(start,end)`,
@@ -24,9 +23,6 @@ Goal: Incrementally evolve the Expo + expo-router app toward the MVP in README.m
       `addOrUpdateEntry(entry)`.
 - Domain `Entry`: `{ date: string, pillTaken: boolean, bloodFlow: BloodFlow, symptoms?: SymptomKey[], notes?: string }`.
 - Symptoms fixed set: `cramps`, `vomiting`, `headache`, `moodChanges`.
-- Helpers: `createSymptomBitmask(keys)`, `decodeSymptomBitmask(mask)`; keys are deduped.
-- Bitmask is hidden from callers; API uses `SymptomKey[]` and encodes/decodes internally.
-- Notes: single string per entry (not an array).
 
 ## Pill reminder
 - Configure in Profile; quick actions in Today.

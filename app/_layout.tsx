@@ -3,6 +3,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Stack } from "expo-router";
 import { StatusBar } from 'expo-status-bar';
 import React, { createContext, useMemo, useState } from "react";
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 export type ThemeContextType = {
   theme: 'light' | 'dark' | 'red' | 'system';
@@ -25,10 +26,12 @@ export default function RootLayout() {
 
   return (
     <ThemeContext.Provider value={value}>
-      <StatusBar style={statusBarStyle} backgroundColor={statusBarBg} />
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      </Stack>
+      <SafeAreaProvider>
+        <StatusBar style={statusBarStyle} backgroundColor={statusBarBg} />
+        <Stack>
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
+      </SafeAreaProvider>
     </ThemeContext.Provider>
   );
 }

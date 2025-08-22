@@ -22,7 +22,6 @@ Today, Calendar, Profile
 ### Menstruation Calendar
 The menstruation tracker will allow Clarissa to log her menstrual cycle and symptoms.
 For this, a tab should be available in the app displaying a user-friendly calendar view. (Calendar)
-Please use a lightweight custom grid as calendar. Remember leap years.
 
 When she taps on a date, she can input her blood flow intensity.
 Cycle start by first day with bloodflow.
