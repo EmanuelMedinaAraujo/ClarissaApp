@@ -12,6 +12,7 @@ import { BloodFlow, createSymptomBitmask, decodeSymptomBitmask, Entry, SymptomKe
 
 const DB_NAME = 'clarissa.db';
 const TABLE_NAME = 'entries';
+const PILL_CONFIG_TABLE = 'pill_config';
 
 type Row = {
   date: string;
@@ -35,6 +36,18 @@ async function migrate(db: SQLiteDatabase) {
 
   // Index for ordering by date if needed
   await db.execAsync(`CREATE INDEX IF NOT EXISTS idx_${TABLE_NAME}_date ON ${TABLE_NAME}(date);`);
+
+  // Pill config (single row table)
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS ${PILL_CONFIG_TABLE} (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      cycle_length INTEGER NOT NULL DEFAULT 21,
+      break_length INTEGER NOT NULL DEFAULT 7,
+      first_pill_date TEXT
+    );
+  `);
+  // Ensure singleton row exists
+  await db.execAsync(`INSERT OR IGNORE INTO ${PILL_CONFIG_TABLE} (id, cycle_length, break_length, first_pill_date) VALUES (1, 21, 7, NULL);`);
 }
 
 function rowToEntry(row: Row): Entry {
@@ -57,7 +70,16 @@ export interface StorageService {
   recordSymptom(date: Date | string, symptoms: SymptomKey[]): Promise<void>;
   recordNote(date: Date | string, note: string): Promise<void>;
   addOrUpdateEntry(entry: Entry): Promise<void>;
+  // Pill cycle config
+  getPillConfig(): Promise<PillConfig>;
+  savePillConfig(cfg: PillConfig): Promise<void>;
 }
+
+export type PillConfig = {
+  cycleLength: number; // active pill days in a cycle (e.g., 21)
+  breakLength: number; // break days (e.g., 7)
+  firstPillDate: string | null; // YYYY-MM-DD of first pill day in the model
+};
 
 async function init(): Promise<SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync(DB_NAME);
@@ -129,6 +151,36 @@ export async function createSQLiteStorage(): Promise<StorageService & { getEntry
           symptomsBitmask,
           entry.notes ?? null,
         ]
+      );
+    },
+
+    async getPillConfig(): Promise<PillConfig> {
+      const rows = await db.getAllAsync<{ id: number; cycle_length: number; break_length: number; first_pill_date: string | null }>(
+        `SELECT id, cycle_length, break_length, first_pill_date FROM ${PILL_CONFIG_TABLE} WHERE id = 1`
+      );
+      if (!rows.length) {
+        return { cycleLength: 21, breakLength: 7, firstPillDate: null };
+      }
+      const r = rows[0];
+      return {
+        cycleLength: Math.max(1, Number(r.cycle_length ?? 21)),
+        breakLength: Math.max(0, Number(r.break_length ?? 7)),
+        firstPillDate: r.first_pill_date ?? null,
+      };
+    },
+
+    async savePillConfig(cfg: PillConfig): Promise<void> {
+      const cycle = Math.max(1, Math.floor(cfg.cycleLength));
+      const brk = Math.max(0, Math.floor(cfg.breakLength));
+      const first = cfg.firstPillDate ? toLocalDateKey(cfg.firstPillDate) : null;
+      await db.runAsync(
+        `INSERT INTO ${PILL_CONFIG_TABLE} (id, cycle_length, break_length, first_pill_date)
+         VALUES (1, ?, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET
+           cycle_length = excluded.cycle_length,
+           break_length = excluded.break_length,
+           first_pill_date = excluded.first_pill_date`,
+        [cycle, brk, first]
       );
     },
     // Back-compat: also expose the correct-spelled variant for convenience

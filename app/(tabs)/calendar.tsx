@@ -3,7 +3,7 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { BloodFlow, Entry, SymptomKey, toLocalDateKey } from '@/data/models/menstruation';
-import { createSQLiteStorage } from '@/data/storage/sqliteStorage';
+import { createSQLiteStorage, type PillConfig } from '@/data/storage/sqliteStorage';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -61,6 +61,7 @@ export default function CalendarScreen() {
 	// Storage service
 	const storageRef = useRef<Awaited<ReturnType<typeof createSQLiteStorage>> | null>(null);
 	const [ready, setReady] = useState(false);
+	const [pillCfg, setPillCfg] = useState<PillConfig | null>(null);
 
 	// Visible month / current displayed date
 	const today = new Date();
@@ -88,6 +89,11 @@ export default function CalendarScreen() {
 			const s = await createSQLiteStorage();
 			if (!mounted) return;
 			storageRef.current = s;
+			// Load pill config early
+			try {
+				const cfg = await s.getPillConfig();
+				if (mounted) setPillCfg(cfg);
+			} catch {}
 			setReady(true);
 		})();
 		return () => { mounted = false; };
@@ -104,6 +110,30 @@ export default function CalendarScreen() {
 			setEntries(rows);
 		})();
 	}, [ready, visible.year, visible.month1]);
+
+		// Helper: compare ISO date keys
+		const isKeyOnOrAfter = useCallback((a: string, b: string) => a >= b, []);
+		const daysBetweenKeys = useCallback((startKey: string, endKey: string) => {
+			// Parse as local dates at midnight
+			const [sy, sm, sd] = startKey.split('-').map(Number);
+			const [ey, em, ed] = endKey.split('-').map(Number);
+			const start = new Date(sy, (sm ?? 1) - 1, sd ?? 1);
+			const end = new Date(ey, (em ?? 1) - 1, ed ?? 1);
+			const ms = end.getTime() - start.getTime();
+			return Math.floor(ms / (24 * 60 * 60 * 1000));
+		}, []);
+
+		const pillExpectationFor = useCallback((key: string): 'pill' | 'break' | null => {
+			if (!pillCfg || !pillCfg.firstPillDate) return null;
+			if (!isKeyOnOrAfter(key, todayKey)) return null; // only affect today and future
+			// If no entry exists, we may show expectation
+			const cycleTotal = Math.max(1, Math.floor((pillCfg.cycleLength ?? 21) + (pillCfg.breakLength ?? 7)));
+			const cycleLen = Math.max(1, Math.floor(pillCfg.cycleLength ?? 21));
+			const fromStart = daysBetweenKeys(pillCfg.firstPillDate, key);
+			if (fromStart < 0) return null; // before model start
+			const pos = fromStart % cycleTotal;
+			return pos < cycleLen ? 'pill' : 'break';
+		}, [pillCfg, todayKey, isKeyOnOrAfter, daysBetweenKeys]);
 
 	// keyboard state & scroll refs for the inline form
 	const scrollRef = useRef<ScrollView | null>(null);
@@ -233,7 +263,11 @@ export default function CalendarScreen() {
 			const isEditing = editingKey === key;
 			const ringColor = themeName === 'red' ? '#fff' : selectionColor;
 			const textColorForDay = markedDates[key]?.customStyles?.text?.color ?? Colors[themeName].text;
-			const pillTaken = entry?.pillTaken ?? false; // default to false (no pill taken)
+			const pillTaken = entry?.pillTaken ?? false;
+
+			const noEntry = !entry;
+			const isFutureOrToday = isKeyOnOrAfter(key, todayKey);
+			const expectation = noEntry ? pillExpectationFor(key) : null;
 
 			return (
 				<TouchableOpacity onPress={() => onPress?.(date)} activeOpacity={0.8} style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
@@ -259,11 +293,30 @@ export default function CalendarScreen() {
 						<ThemedText style={{ color: textColorForDay, fontWeight: '600' }}>{date.day}</ThemedText>
 					</View>
 
-					{/* Pill indicator: always render (filled if pillTaken, outline if not), fixed at center-bottom */}
+					{/* Pill indicator (bottom center):
+					   - If entry exists: filled when taken, outline when recorded not taken.
+					   - If no entry and date >= today: show expectation from config -> striped outline on pill days, nothing on break days.
+					   - Past days without entry: outline (unchanged).
+					*/}
 					<View style={{ position: 'absolute', bottom: 6, left: '50%', transform: [{ translateX: -4 }] }}>
-						{pillTaken ? (
-							<View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: textColorForDay }} />
+						{entry ? (
+							pillTaken ? (
+								<View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: textColorForDay }} />
+							) : (
+								<View style={{ width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: textColorForDay, backgroundColor: 'transparent' }} />
+							)
+						) : isFutureOrToday ? (
+							expectation === 'pill' ? (
+								<View style={{ width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: textColorForDay, backgroundColor: 'transparent', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
+									<View style={{ position: 'absolute', width: 6, height: 1, backgroundColor: textColorForDay, transform: [{ rotate: '45deg' }] }} />
+									<View style={{ position: 'absolute', width: 6, height: 1, backgroundColor: textColorForDay, transform: [{ rotate: '-45deg' }] }} />
+								</View>
+							) : (
+								// break day -> no dot
+								<View style={{ width: 8, height: 8 }} />
+							)
 						) : (
+							// past day without entry -> outline
 							<View style={{ width: 8, height: 8, borderRadius: 4, borderWidth: 1, borderColor: textColorForDay, backgroundColor: 'transparent' }} />
 						)}
 					</View>
