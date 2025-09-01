@@ -20,14 +20,20 @@ Goal: Incrementally evolve the Expo + expo-router app toward the MVP in README.m
    - `loadAllEntries()`, `getEntryByData(date)`, `listEntriesInRange(start,end)`,
       `recordPillIntake(date)`, `recordBloodFlow(date, blood_flow)`,
       `recordSymptom(date, symptoms[])`, `recordNote(date, note)`,
-      `addOrUpdateEntry(entry)`.
+   `addOrUpdateEntry(entry)`.
+   - Pill cycle config (single-row table `pill_config`):
+   - Table columns: `id INTEGER PRIMARY KEY CHECK (id = 1)`, `cycle_length INTEGER NOT NULL DEFAULT 21`, `break_length INTEGER NOT NULL DEFAULT 7`, `first_pill_date TEXT`.
+   - Type `PillConfig`: `{ cycleLength: number; breakLength: number; firstPillDate: string | null }` (dates as ISO `YYYY-MM-DD`).
+   - API: `getPillConfig()` and `savePillConfig(cfg)`; values sanitized (cycleLength ≥ 1, breakLength ≥ 0) and normalized to local ISO keys.
 - Domain `Entry`: `{ date: string, pillTaken: boolean, bloodFlow: BloodFlow, symptoms?: SymptomKey[], notes?: string }`.
 - Symptoms fixed set: `cramps`, `vomiting`, `headache`, `moodChanges`.
+- Events: emit `AppEvents.PillConfigChanged` after saving the pill config; listeners (e.g., Calendar) refresh expected pill/break markers accordingly.
 
 ## Pill reminder
 - Configure in Profile; quick actions in Today.
-- Model 21+7 cycles apart from intake logs.
-- `expo-notifications`, device timezone, per-weekday HH:MM.
+- Pill cycle config stored in SQLite (`pill_config`) via `getPillConfig`/`savePillConfig`. Fields: cycleLength (active days), breakLength (break days), firstPillDate (start of model).
+- Calendar uses the config to compute expected pill vs break days from `firstPillDate` with cycleLength + breakLength, showing non-invasive markers for today/future when no entry exists.
+- `expo-notifications`, device timezone, per-weekday HH:MM (scheduling not wired yet; will use the stored config once implemented).
 
 ## Today tab
 - Show date, pill reminders, quick intake, cycle status, next bleeding.
