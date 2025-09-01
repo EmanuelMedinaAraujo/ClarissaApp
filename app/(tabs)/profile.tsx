@@ -187,7 +187,7 @@ export default function ProfileScreen() {
 							keyboardType={Platform.OS === 'ios' ? 'number-pad' : 'numeric'}
 							defaultValue={String(cfg.breakLength ?? '7')}
 							returnKeyType="done"
-							onSubmitEditing={onNumberSubmit('breakLength', 21, 0)}
+							onSubmitEditing={onNumberSubmit('breakLength', 7, 0)}
 							style={[styles.input, { borderColor: Colors[themeName].border, color: Colors[themeName].text }]}
 						/>
 					</View>
