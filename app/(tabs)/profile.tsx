@@ -4,6 +4,7 @@ import { ThemedView } from '@/components/ThemedView';
 import { Colors } from '@/constants/Colors';
 import { createSQLiteStorage, type PillConfig } from '@/data/storage/sqliteStorage';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { AppEvents, events } from '@/logic/eventBus';
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import React, { useContext, useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
@@ -59,6 +60,8 @@ export default function ProfileScreen() {
 			const sanitized: PillConfig = { cycleLength: cycle, breakLength: brk, firstPillDate: first };
 			await storageRef.current.savePillConfig(sanitized);
 			setCfg(sanitized);
+			// notify other screens (e.g., Calendar) to refresh indicators
+			events.emit(AppEvents.PillConfigChanged, sanitized);
 		} finally {
 			setSaving(false);
 		}
@@ -103,6 +106,10 @@ export default function ProfileScreen() {
 	}, [cfg.firstPillDate]);
 
 	const openPicker = () => {
+		if(showPicker){
+			setShowPicker(false);
+			return;
+		}
 		// Ensure picker reflects current config
 		if (cfg.firstPillDate) {
 			const [y, m, d] = cfg.firstPillDate.split('-').map(Number);
@@ -113,16 +120,30 @@ export default function ProfileScreen() {
 		setShowPicker(true);
 	};
 
-	const onPickerChange = (_event: DateTimePickerEvent, selectedDate?: Date) => {
-		// Hide in any case
-		setShowPicker(false);
-		if (!selectedDate) return;
-		const y = selectedDate.getFullYear();
-		const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
-		const d = String(selectedDate.getDate()).padStart(2, '0');
-		const key = `${y}-${m}-${d}`;
-		schedulePersist({ ...cfg, firstPillDate: key });
-	};
+	const onPickerChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
+			// If the user dismissed the dialog, close it and do nothing.
+			const type = (event && (event as any).type) || undefined;
+			if (type === 'dismissed') {
+				setShowPicker(false);
+				return;
+			}
+
+			// If a valid date was provided, update the local picker state and persist.
+			if (selectedDate) {
+				setPickerDate(selectedDate);
+				const y = selectedDate.getFullYear();
+				const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+				const d = String(selectedDate.getDate()).padStart(2, '0');
+				const key = `${y}-${m}-${d}`;
+				schedulePersist({ ...cfg, firstPillDate: key });
+			}
+
+			// On Android the dialog sends type === 'set' when the user confirms the final selection.
+			// Close the picker in that case. For iOS (inline) keep it visible while navigating months/years.
+			if (Platform.OS === 'android' && type === 'set') {
+				setShowPicker(false);
+			}
+		};
 
 	const dismissKeyboard = () => Keyboard.dismiss();
 

@@ -5,17 +5,18 @@ import { Colors } from '@/constants/Colors';
 import { BloodFlow, Entry, SymptomKey, toLocalDateKey } from '@/data/models/menstruation';
 import { createSQLiteStorage, type PillConfig } from '@/data/storage/sqliteStorage';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { AppEvents, events } from '@/logic/eventBus';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-	Keyboard,
-	KeyboardAvoidingView,
-	Platform,
-	ScrollView,
-	StyleSheet,
-	Switch,
-	TextInput,
-	TouchableOpacity,
-	View,
+    Keyboard,
+    KeyboardAvoidingView,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
 import { Calendar, type DateData } from 'react-native-calendars';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -110,6 +111,18 @@ export default function CalendarScreen() {
 			setEntries(rows);
 		})();
 	}, [ready, visible.year, visible.month1]);
+
+		// Listen for pill config updates
+		useEffect(() => {
+			const off = events.on(AppEvents.PillConfigChanged, async () => {
+				if (!storageRef.current) return;
+				try {
+					const cfg = await storageRef.current.getPillConfig();
+					setPillCfg(cfg);
+				} catch {}
+			});
+			return off;
+		}, []);
 
 		// Helper: compare ISO date keys
 		const isKeyOnOrAfter = useCallback((a: string, b: string) => a >= b, []);
