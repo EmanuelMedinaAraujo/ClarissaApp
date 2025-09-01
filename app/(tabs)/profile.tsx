@@ -196,7 +196,14 @@ export default function ProfileScreen() {
 					<ThemedText style={styles.label}>First pill day</ThemedText>
 					<View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}> 
 						<TouchableOpacity onPress={openPicker} style={[styles.input, { flex: 1, borderColor: Colors[themeName].border, backgroundColor: Colors[themeName].card }]}> 
-							<ThemedText>{cfg.firstPillDate ?? 'Select date'}</ThemedText>
+							<ThemedText>
+								{cfg.firstPillDate
+									? (() => {
+										const [y, m, d] = cfg.firstPillDate.split('-');
+										return `${d}-${m}-${y}`;
+									})()
+									: 'Select date'}
+							</ThemedText>
 						</TouchableOpacity>
 						<TouchableOpacity onPress={useToday} style={[styles.smallBtn, { borderColor: Colors[themeName].border }]}> 
 							<ThemedText style={[styles.smallBtnText, { color: Colors[themeName].tint }]}>Use today</ThemedText>
@@ -206,16 +213,14 @@ export default function ProfileScreen() {
 						<DateTimePicker
 							value={pickerDate}
 							mode="date"
-							display={Platform.OS === 'ios' ? 'inline' : 'default'}
+							display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+							textColor={Colors[themeName].text}
 							onChange={onPickerChange}
 							maximumDate={new Date(2100, 11, 31)}
 							minimumDate={new Date(2000, 0, 1)}
 						/>
 					)}
 				</View>
-				<ThemedText style={[styles.hint, { color: Colors[themeName].text }]}>
-					Changes are saved automatically and used by Calendar from today onward.
-				</ThemedText>
 				{keyboardVisible && (
 					<TouchableOpacity onPress={dismissKeyboard} style={[styles.smallBtn, { alignSelf: 'flex-end', marginTop: 4, borderColor: Colors[themeName].border }]}> 
 						<ThemedText style={[styles.smallBtnText, { color: Colors[themeName].tint }]}>Close keyboard</ThemedText>
