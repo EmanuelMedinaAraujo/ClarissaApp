@@ -9,11 +9,17 @@ import { AppEvents, events } from '@/logic/eventBus';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Fixed symptom list used elsewhere
 const SYMPTOMS: SymptomKey[] = ['cramps', 'vomiting', 'headache', 'moodChanges'];
+
+// Cute nickname options (kept short and friendly)
+const NICKNAMES = [
+	'Babe', 'Honey', 'Sweetie', 'Schatzi', 'Sunshine', 'Sweetheart', 'Süßi', 'Süße',
+	'Cupcake', 'Baby', 'Sugar', 'Muffin', 'Snuggle', 'Sissy',
+];
 
 export default function TodayScreen() {
 	const insets = useSafeAreaInsets();
@@ -229,11 +235,31 @@ export default function TodayScreen() {
 
 	const pillDue = pillCfg && pillExpectation === 'pill' && !(entry?.pillTaken);
 
+	// Pick a random nickname once per mount
+	const nickname = useMemo(() => NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)], []);
+
+	// Animated pulsing heart
+	const heartScale = useRef(new Animated.Value(1)).current;
+	useEffect(() => {
+		const anim = Animated.loop(
+			Animated.sequence([
+				Animated.timing(heartScale, { toValue: 1.25, duration: 3000, useNativeDriver: true }),
+				Animated.timing(heartScale, { toValue: 1, duration: 3000, useNativeDriver: true }),
+			])
+		);
+		anim.start();
+		return () => anim.stop();
+	}, [heartScale]);
+
 	return (
-		<ThemedView style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}> 
+		<ThemedView style={[styles.container, { paddingTop: Math.max(insets.top, 60) }]}> 
 			<ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
-				{/* Header with date */}
+				{/* Greeting + Header with date */}
 				<View style={[styles.header, { borderBottomColor: borderColor }]}> 
+					<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+						<ThemedText style={styles.greeting}>Hi, {nickname}</ThemedText>
+						<Animated.Text style={[styles.heart, { transform: [{ scale: heartScale }] }]}>❤️</Animated.Text>
+					</View>
 					<ThemedText style={styles.headerTitle}>
 						{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(today)}
 					</ThemedText>
@@ -387,6 +413,15 @@ const styles = StyleSheet.create({
 	cardTitle: {
 		fontSize: 18,
 		fontWeight: '700',
+	},
+	greeting: {
+		fontSize: 30,
+		fontWeight: '600',
+		marginBottom: 6,
+	},
+	heart: {
+		fontSize: 22,
+		marginLeft: 4,
 	},
 	muted: {
 		fontSize: 12,
