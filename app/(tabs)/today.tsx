@@ -133,9 +133,12 @@ export default function TodayScreen() {
 		await updateEntry({ pillTaken: !(entry?.pillTaken ?? false) });
 	}, [entry, updateEntry]);
 
-	const setFlow = useCallback(async (flow: BloodFlow) => {
-		await updateEntry({ bloodFlow: flow });
-	}, [updateEntry]);
+	// Toggleable flow: tapping an active flow clears it (-> None)
+	const toggleFlow = useCallback(async (flow: BloodFlow) => {
+		const current = entry?.bloodFlow ?? BloodFlow.None;
+		const next = current === flow ? BloodFlow.None : flow;
+		await updateEntry({ bloodFlow: next });
+	}, [entry, updateEntry]);
 
 	const toggleSymptom = useCallback(async (key: SymptomKey) => {
 		const set = new Set(entry?.symptoms ?? []);
@@ -259,11 +262,11 @@ export default function TodayScreen() {
 					<View style={styles.section}> 
 						<ThemedText style={styles.sectionLabel}>Flow</ThemedText>
 						<View style={styles.segmentRow}>
-							{[BloodFlow.None, BloodFlow.Light, BloodFlow.Medium, BloodFlow.Heavy].map((f) => {
+							{[BloodFlow.Light, BloodFlow.Medium, BloodFlow.Heavy].map((f) => {
 								const active = (entry?.bloodFlow ?? BloodFlow.None) === f;
 								const c = flowPalette[f].color;
 								return (
-									<Pressable key={f} onPress={() => setFlow(f)} style={[styles.segmentBtn, {
+									<Pressable key={f} onPress={() => toggleFlow(f)} style={[styles.segmentBtn, {
 										borderColor: active ? c : borderColor,
 										backgroundColor: active ? (Platform.OS === 'ios' ? c + '33' : c + '22') : 'transparent'
 									}]}>
@@ -353,10 +356,10 @@ export default function TodayScreen() {
 
 function labelForSymptom(k: SymptomKey): string {
 	switch (k) {
-		case 'cramps': return 'Cramps';
-		case 'vomiting': return 'Nausea';
-		case 'headache': return 'Headache';
-		case 'moodChanges': return 'Mood';
+		case 'cramps': return '🩺 Cramps';
+		case 'vomiting': return '🤢 Nausea';
+		case 'headache': return '🤕 Headache';
+		case 'moodChanges': return '🙂 Mood';
 		default: return k;
 	}
 }

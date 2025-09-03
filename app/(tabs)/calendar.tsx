@@ -51,6 +51,17 @@ function isTodayKey(key: string): boolean {
 	return key === toLocalDateKey(new Date());
 }
 
+function labelForSymptomWithEmoji(k: SymptomKey): string {
+	// Keep labels consistent with Today tab and add a simple emoji
+	switch (k) {
+ 		case 'cramps': return '🩺 Cramps';
+ 		case 'vomiting': return '🤢 Nausea';
+ 		case 'headache': return '🤕 Headache';
+ 		case 'moodChanges': return '🙂 Mood';
+ 		default: return k;
+ 	}
+}
+
 export default function CalendarScreen() {
 	const themeCtx = useContext(ThemeContext);
 	const themeName = themeCtx?.effectiveTheme ?? 'light';
@@ -610,8 +621,8 @@ export default function CalendarScreen() {
 														active && { backgroundColor: Colors[themeName].card, borderColor: tint },
 													]}
 													>
-														<ThemedText style={[styles.chipText, active && { color: tint, fontWeight: '600' }]}>
-														{k}
+														<ThemedText style={[styles.chipText, active && { color: tint, fontWeight: '600' }]}> 
+														{labelForSymptomWithEmoji(k)}
 														</ThemedText>
 													</TouchableOpacity>
 													);
