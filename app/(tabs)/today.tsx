@@ -9,7 +9,7 @@ import { AppEvents, events } from '@/logic/eventBus';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Fixed symptom list used elsewhere
@@ -36,15 +36,32 @@ export default function TodayScreen() {
 	const [ready, setReady] = useState(false);
 	const [pillCfg, setPillCfg] = useState<PillConfig | null>(null);
 
-	// Date keys
-	const today = new Date();
-	const todayKey = toLocalDateKey(today);
+	// Date keys (make `today` stateful so we can refresh at midnight / on app resume)
+	const [today, setToday] = useState<Date>(new Date());
+	const todayKey = useMemo(() => toLocalDateKey(today), [today]);
 
 	// Today's entry
 	const [entry, setEntry] = useState<Entry | null>(null);
 
 	// All entries (for period prediction)
 	const [allEntries, setAllEntries] = useState<Entry[] | null>(null);
+
+	// Refresh helper used by multiple listeners
+	const refreshFromStorage = useCallback(async () => {
+		if (!storageRef.current) return;
+		try {
+			const s = storageRef.current;
+			const cfg = await s.getPillConfig();
+			setPillCfg(cfg);
+			const e = await s.getEntryByDate(todayKey);
+			setEntry(e);
+			const list = await s.loadAllEntries();
+			setAllEntries(list);
+			setReady(true);
+		} catch (err) {
+			// best-effort
+		}
+	}, [todayKey]);
 
 	// Init storage
 	useEffect(() => {
@@ -53,19 +70,11 @@ export default function TodayScreen() {
 			const s = await createSQLiteStorage();
 			if (!mounted) return;
 			storageRef.current = s;
-			const cfg = await s.getPillConfig();
-			if (!mounted) return;
-			setPillCfg(cfg);
-			const e = await s.getEntryByDate(todayKey);
-			if (!mounted) return;
-			setEntry(e);
-			const list = await s.loadAllEntries();
-			if (!mounted) return;
-			setAllEntries(list);
-			setReady(true);
+			// Initial refresh
+			await refreshFromStorage();
 		})();
 		return () => { mounted = false; };
-	}, [todayKey]);
+	}, [refreshFromStorage]);
 
 	// Listen to pill config changes (from Profile/Calendar etc.)
 	useEffect(() => {
@@ -81,24 +90,27 @@ export default function TodayScreen() {
 	// any changes made elsewhere (Profile, Calendar, notifications, etc.).
 	const isFocused = useIsFocused();
 	useEffect(() => {
-		if (!isFocused || !storageRef.current) return;
-		let mounted = true;
-		(async () => {
-			try {
-				const s = storageRef.current!;
-				const cfg = await s.getPillConfig();
-				if (mounted) setPillCfg(cfg);
-				const e = await s.getEntryByDate(todayKey);
-				if (mounted) setEntry(e);
-				const list = await s.loadAllEntries();
-				if (mounted) setAllEntries(list);
-				if (mounted) setReady(true);
-			} catch (e) {
-				// best-effort refresh; ignore errors
+		if (!isFocused) return;
+		// When the Today tab becomes focused, refresh data
+		refreshFromStorage();
+	}, [isFocused, refreshFromStorage]);
+
+	// If the app comes back to the foreground (e.g., went to background overnight),
+	// update `today` and refresh entries when needed.
+	useEffect(() => {
+		const subscription = AppState.addEventListener('change', (next) => {
+			if (next !== 'active') return;
+			const now = new Date();
+			const newKey = toLocalDateKey(now);
+			if (newKey !== todayKey) {
+				// Ensure UI shows the new day
+				setToday(now);
 			}
-		})();
-		return () => { mounted = false; };
-	}, [isFocused, todayKey]);
+			// If the Today tab is visible, refresh storage-derived state
+			if (isFocused) refreshFromStorage();
+		});
+		return () => subscription.remove();
+	}, [isFocused, todayKey, refreshFromStorage]);
 
 	// Helpers
 	const daysBetweenKeys = useCallback((startKey: string, endKey: string) => {
@@ -235,8 +247,17 @@ export default function TodayScreen() {
 
 	const pillDue = pillCfg && pillExpectation === 'pill' && !(entry?.pillTaken);
 
-	// Pick a random nickname once per mount
-	const nickname = useMemo(() => NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)], []);
+	// Pick a deterministic nickname based on the date key so it stays constant for the day
+	// Also include relevant state in the dependency list so the greeting refreshes when
+	// the screen refreshes (e.g. pill config or data reloads from Profile/Calendar).
+	const nickname = useMemo(() => {
+		const s = todayKey;
+		let hash = 0;
+		for (let i = 0; i < s.length; i++) {
+			hash = (hash * 31 + s.charCodeAt(i)) >>> 0;
+		}
+		return NICKNAMES[hash % NICKNAMES.length];
+	}, [todayKey, pillCfg, ready]);
 
 	// Animated pulsing heart
 	const heartScale = useRef(new Animated.Value(1)).current;
