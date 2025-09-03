@@ -1,551 +1,464 @@
+import { ThemeContext } from '@/app/_layout';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { BloodFlow, toLocalDateKey, type SymptomKey } from '@/data/models/menstruation';
-import { createSQLiteStorage, type Entry, type PillConfig } from '@/data/storage';
+import { Colors } from '@/constants/Colors';
+import { BloodFlow, Entry, SymptomKey, toLocalDateKey } from '@/data/models/menstruation';
+import { createSQLiteStorage, PillConfig } from '@/data/storage/sqliteStorage';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { AppEvents, events } from '@/logic/eventBus';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import {
-	Animated,
-	Easing,
-	Pressable,
-	ScrollView,
-	StyleSheet,
-	View,
-} from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useIsFocused } from '@react-navigation/native';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-type PillState = {
-	dayOfCycle: number | null; // 1-based
-	isPillDay: boolean | null;
-	isBreakDay: boolean | null;
-	nextBreakStart: string | null; // YYYY-MM-DD
-	currentBreakEnds: string | null; // YYYY-MM-DD
-};
-
-type FertilityInfo = {
-	cycleStart: string | null; // YYYY-MM-DD
-	cycleDay: number | null; // 1-based
-	status: 'low' | 'fertile' | 'ovulation' | 'unknown';
-	fertileWindow: { start: string; end: string } | null;
-	ovulationDay: string | null;
-};
-
-const today = new Date();
-const todayKey = toLocalDateKey(today);
+// Fixed symptom list used elsewhere
+const SYMPTOMS: SymptomKey[] = ['cramps', 'vomiting', 'headache', 'moodChanges'];
 
 export default function TodayScreen() {
-	// theme colors
-	const bg = useThemeColor({}, 'background');
-	const text = useThemeColor({}, 'text');
-	const card = useThemeColor({}, 'card');
-	const border = useThemeColor({}, 'border');
-	const tint = useThemeColor({}, 'tint');
-	const error = useThemeColor({}, 'error');
+	const insets = useSafeAreaInsets();
+	const themeCtx = useContext(ThemeContext);
+	const themeName = themeCtx?.effectiveTheme ?? 'light';
+	const textColor = useThemeColor({}, 'text');
+	const cardBg = Colors[themeName].card ?? (themeName === 'light' ? '#f6f8fa' : '#2f363d');
+	const borderColor = Colors[themeName].border ?? (themeName === 'dark' ? '#444' : '#e1e4e8');
+	const tint = Colors[themeName].tint;
+	const highlight = themeName === 'red' ? (Colors.red.highlight ?? tint) : tint;
 
-	// storage
+	// Storage
 	const storageRef = useRef<Awaited<ReturnType<typeof createSQLiteStorage>> | null>(null);
-
-	const [loading, setLoading] = useState(true);
-	const [entry, setEntry] = useState<Entry | null>(null);
+	const [ready, setReady] = useState(false);
 	const [pillCfg, setPillCfg] = useState<PillConfig | null>(null);
-	const [fertility, setFertility] = useState<FertilityInfo | null>(null);
-	const [pillState, setPillState] = useState<PillState | null>(null);
-	const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-	// simple animate-in
-	const fadeIn = useRef(new Animated.Value(0)).current;
-	useEffect(() => {
-		Animated.timing(fadeIn, { toValue: 1, duration: 450, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
-	}, [fadeIn]);
+	// Date keys
+	const today = new Date();
+	const todayKey = toLocalDateKey(today);
 
-	// subscribe to pill config changes
+	// Today's entry
+	const [entry, setEntry] = useState<Entry | null>(null);
+
+	// All entries (for period prediction)
+	const [allEntries, setAllEntries] = useState<Entry[] | null>(null);
+
+	// Init storage
 	useEffect(() => {
-		const off = events.on(AppEvents.PillConfigChanged, () => {
-			void loadData();
+		let mounted = true;
+		(async () => {
+			const s = await createSQLiteStorage();
+			if (!mounted) return;
+			storageRef.current = s;
+			const cfg = await s.getPillConfig();
+			if (!mounted) return;
+			setPillCfg(cfg);
+			const e = await s.getEntryByDate(todayKey);
+			if (!mounted) return;
+			setEntry(e);
+			const list = await s.loadAllEntries();
+			if (!mounted) return;
+			setAllEntries(list);
+			setReady(true);
+		})();
+		return () => { mounted = false; };
+	}, [todayKey]);
+
+	// Listen to pill config changes (from Profile/Calendar etc.)
+	useEffect(() => {
+		const off = events.on(AppEvents.PillConfigChanged, async () => {
+			if (!storageRef.current) return;
+			const cfg = await storageRef.current.getPillConfig();
+			setPillCfg(cfg);
 		});
 		return off;
 	}, []);
 
+	// Refresh data whenever the Today tab becomes focused so the UI reflects
+	// any changes made elsewhere (Profile, Calendar, notifications, etc.).
+	const isFocused = useIsFocused();
 	useEffect(() => {
-		void loadData();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+		if (!isFocused || !storageRef.current) return;
+		let mounted = true;
+		(async () => {
+			try {
+				const s = storageRef.current!;
+				const cfg = await s.getPillConfig();
+				if (mounted) setPillCfg(cfg);
+				const e = await s.getEntryByDate(todayKey);
+				if (mounted) setEntry(e);
+				const list = await s.loadAllEntries();
+				if (mounted) setAllEntries(list);
+				if (mounted) setReady(true);
+			} catch (e) {
+				// best-effort refresh; ignore errors
+			}
+		})();
+		return () => { mounted = false; };
+	}, [isFocused, todayKey]);
+
+	// Helpers
+	const daysBetweenKeys = useCallback((startKey: string, endKey: string) => {
+		const [sy, sm, sd] = startKey.split('-').map(Number);
+		const [ey, em, ed] = endKey.split('-').map(Number);
+		const s = new Date(sy, sm - 1, sd);
+		const e = new Date(ey, em - 1, ed);
+		const ms = e.getTime() - s.getTime();
+		return Math.floor(ms / 86400000);
 	}, []);
 
-	async function ensureStorage() {
-		if (!storageRef.current) {
-			storageRef.current = await createSQLiteStorage();
+	const pillExpectation: 'pill' | 'break' | null = useMemo(() => {
+		if (!pillCfg || !pillCfg.firstPillDate) return null;
+		const first = pillCfg.firstPillDate;
+		if (todayKey < first) return null;
+		const total = Math.max(1, (pillCfg.cycleLength ?? 21) + (pillCfg.breakLength ?? 7));
+		const diff = daysBetweenKeys(first, todayKey);
+		const dayInCycle = ((diff % total) + total) % total; // safe modulo
+		return dayInCycle < (pillCfg.cycleLength ?? 21) ? 'pill' : 'break';
+	}, [pillCfg, todayKey, daysBetweenKeys]);
+
+	// Quick persist helpers
+	const updateEntry = useCallback(async (updates: Partial<Entry>) => {
+		if (!storageRef.current) return;
+		const current: Entry = {
+			date: todayKey,
+			pillTaken: entry?.pillTaken ?? false,
+			bloodFlow: entry?.bloodFlow ?? BloodFlow.None,
+			symptoms: entry?.symptoms ?? [],
+			notes: entry?.notes,
+		};
+		const next = { ...current, ...updates } as Entry;
+		await storageRef.current.addOrUpdateEntry(next);
+		setEntry(next);
+	}, [entry, todayKey]);
+
+	const togglePill = useCallback(async () => {
+		await updateEntry({ pillTaken: !(entry?.pillTaken ?? false) });
+	}, [entry, updateEntry]);
+
+	const setFlow = useCallback(async (flow: BloodFlow) => {
+		await updateEntry({ bloodFlow: flow });
+	}, [updateEntry]);
+
+	const toggleSymptom = useCallback(async (key: SymptomKey) => {
+		const set = new Set(entry?.symptoms ?? []);
+		if (set.has(key)) set.delete(key); else set.add(key);
+		await updateEntry({ symptoms: Array.from(set) });
+	}, [entry, updateEntry]);
+
+	// Period start inference: a start is a day with flow>None and previous day flow None/undefined
+	const periodStarts = useMemo(() => {
+		if (!allEntries) return [] as string[];
+		const map = new Map(allEntries.map(e => [e.date, e] as const));
+		const keys = allEntries.map(e => e.date).sort();
+		const starts: string[] = [];
+		for (const key of keys) {
+			const e = map.get(key)!;
+			if ((e.bloodFlow ?? BloodFlow.None) > BloodFlow.None) {
+				// prev day
+				const [y, m, d] = key.split('-').map(Number);
+				const prev = new Date(y, m - 1, d - 1);
+				const prevKey = toLocalDateKey(prev);
+				const pe = map.get(prevKey);
+				if (!pe || (pe.bloodFlow ?? BloodFlow.None) === BloodFlow.None) {
+					starts.push(key);
+				}
+			}
 		}
-		return storageRef.current;
-	}
+		return starts.sort();
+	}, [allEntries]);
 
-	async function loadData() {
-		setLoading(true);
-		setErrorMsg(null);
-		try {
-			const storage = await ensureStorage();
-			const [e, cfg] = await Promise.all([
-				storage.getEntryByDate(todayKey),
-				storage.getPillConfig(),
-			]);
-			setEntry(e);
-			setPillCfg(cfg);
-			setPillState(computePillState(cfg, today));
-			const fert = await computeFertility(storage);
-			setFertility(fert);
-		} catch (err: any) {
-			setErrorMsg(String(err?.message ?? err ?? 'Unknown error'));
-		} finally {
-			setLoading(false);
+	const avgCycleLength = useMemo(() => {
+		if (!periodStarts.length) return 28;
+		if (periodStarts.length === 1) return 28;
+		const deltas: number[] = [];
+		for (let i = 1; i < periodStarts.length; i++) {
+			deltas.push(daysBetweenKeys(periodStarts[i - 1], periodStarts[i]));
 		}
-	}
+		const avg = Math.round(deltas.reduce((a, b) => a + b, 0) / deltas.length);
+		return Math.max(21, Math.min(35, avg || 28));
+	}, [periodStarts, daysBetweenKeys]);
 
-	// Handlers
-	const onTogglePill = async () => {
-		try {
-			const storage = await ensureStorage();
-			const current = entry?.pillTaken ?? false;
-			const next = !current;
-			await storage.recordPillIntake(todayKey, next);
-			Haptics.impactAsync(next ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light);
-			setEntry(prev => ({
-				date: todayKey,
-				pillTaken: next,
-				bloodFlow: prev?.bloodFlow ?? BloodFlow.None,
-				symptoms: prev?.symptoms ?? [],
-				notes: prev?.notes,
-			}));
-		} catch {}
+	const lastPeriodStart = periodStarts.length ? periodStarts[periodStarts.length - 1] : null;
+
+	const predictedNextPeriod = useMemo(() => {
+		if (!lastPeriodStart) return null;
+		const [y, m, d] = lastPeriodStart.split('-').map(Number);
+		const dt = new Date(y, m - 1, d + avgCycleLength);
+		return toLocalDateKey(dt);
+	}, [lastPeriodStart, avgCycleLength]);
+
+	// Fertility using simple day-14 rule from last period start
+	const fertilityInfo = useMemo(() => {
+		if (!lastPeriodStart) return null as null | {
+			windowStart: string; windowEnd: string; ovulation: string; todayStatus: 'low' | 'moderate' | 'high'
+		};
+		const [y, m, d] = lastPeriodStart.split('-').map(Number);
+		const start = new Date(y, m - 1, d);
+		const ovulation = new Date(start);
+		ovulation.setDate(ovulation.getDate() + 14);
+		const windowStart = new Date(start);
+		windowStart.setDate(windowStart.getDate() + 10);
+		const windowEnd = new Date(start);
+		windowEnd.setDate(windowEnd.getDate() + 15);
+		const sKey = toLocalDateKey(windowStart);
+		const eKey = toLocalDateKey(windowEnd);
+		const oKey = toLocalDateKey(ovulation);
+
+		let todayStatus: 'low' | 'moderate' | 'high' = 'low';
+		if (todayKey >= sKey && todayKey <= eKey) todayStatus = 'high';
+		else if (todayKey === toLocalDateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 9))
+			|| todayKey === toLocalDateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 16))) todayStatus = 'moderate';
+
+		return { windowStart: sKey, windowEnd: eKey, ovulation: oKey, todayStatus };
+	}, [lastPeriodStart, todayKey]);
+
+	// UI helpers
+	const formatHuman = (key: string) => {
+		const [y, m, d] = key.split('-').map(Number);
+		const dt = new Date(y, m - 1, d);
+		return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(dt);
 	};
 
-	const onSetFlow = async (flow: BloodFlow) => {
-		try {
-			const storage = await ensureStorage();
-			await storage.recordBloodFlow(todayKey, flow);
-			Haptics.selectionAsync();
-			setEntry(prev => ({
-				date: todayKey,
-				pillTaken: prev?.pillTaken ?? false,
-				bloodFlow: flow,
-				symptoms: prev?.symptoms ?? [],
-				notes: prev?.notes,
-			}));
-			// fertility might change if this is a new flow start
-			const fert = await computeFertility(storage);
-			setFertility(fert);
-		} catch {}
-	};
+	const flowPalette = {
+		[BloodFlow.None]: { label: 'None', color: borderColor },
+		[BloodFlow.Light]: { label: 'Light', color: themeName === 'red' ? Colors.red.accent : '#6ec1e4' },
+		[BloodFlow.Medium]: { label: 'Medium', color: themeName === 'red' ? Colors.red.highlight : tint },
+		[BloodFlow.Heavy]: { label: 'Heavy', color: themeName === 'red' ? '#ff8fa3' : '#e57373' },
+	} as const;
 
-	const onToggleSymptom = async (key: SymptomKey) => {
-		try {
-			const storage = await ensureStorage();
-			const prevList = entry?.symptoms ?? [];
-			const exists = prevList.includes(key);
-			const nextList = exists ? prevList.filter(k => k !== key) : [...prevList, key];
-			await storage.recordSymptom(todayKey, nextList);
-			Haptics.selectionAsync();
-			setEntry(prev => ({
-				date: todayKey,
-				pillTaken: prev?.pillTaken ?? false,
-				bloodFlow: prev?.bloodFlow ?? BloodFlow.None,
-				symptoms: nextList,
-				notes: prev?.notes,
-			}));
-		} catch {}
-	};
-
-	const dateFmt = useMemo(() => new Intl.DateTimeFormat(undefined, { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }), []);
-	const shortDateFmt = useMemo(() => new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short' }), []);
-
-	const pillDueEmphasis = pillState?.isPillDay && !(entry?.pillTaken);
+	const pillDue = pillCfg && pillExpectation === 'pill' && !(entry?.pillTaken);
 
 	return (
-		<ThemedView style={{ flex: 1 }}>
-			<Animated.View style={{ opacity: fadeIn, flex: 1 }}>
-				<ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: 36 }]}> 
-					{/* Header with gradient */}
-					<LinearGradient colors={[tint, card]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.headerGrad}>
-						<View style={styles.headerRow}>
-							  <ThemedText style={[styles.headerTitle]}>{dateFmt.format(today)}</ThemedText>
-							  <Ionicons name="calendar-outline" size={24} color={'#fff'} />
+		<ThemedView style={[styles.container, { paddingTop: Math.max(insets.top, 12) }]}> 
+			<ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+				{/* Header with date */}
+				<View style={[styles.header, { borderBottomColor: borderColor }]}> 
+					<ThemedText style={styles.headerTitle}>
+						{new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(today)}
+					</ThemedText>
+				</View>
+
+				{/* Today summary card */}
+				<View style={[styles.card, { backgroundColor: cardBg, borderColor }]}> 
+					<View style={styles.rowBetween}>
+						<View style={{ flex: 1 }}>
+							<ThemedText style={styles.cardTitle}>Today</ThemedText>
 						</View>
-						{pillDueEmphasis ? (
-											<BlurView intensity={40} tint="default" style={[styles.pillBanner, { borderColor: border }]}>
-												<Ionicons name="medkit-outline" size={22} color={error} style={{ marginRight: 8 }} />
-								<ThemedText style={[styles.pillBannerText]}>Pill is due today</ThemedText>
-							</BlurView>
+						{pillDue ? (
+							<View style={[styles.pillBadge, { backgroundColor: highlight + '22', borderColor: highlight }]}> 
+								<MaterialCommunityIcons name="pill" color={highlight} size={18} />
+								<ThemedText style={[styles.pillBadgeText, { color: highlight }]}>Pill due</ThemedText>
+							</View>
+						) : pillExpectation === 'pill' ? (
+							<View style={[styles.pillBadge, { backgroundColor: (Colors[themeName].card ?? cardBg), borderColor }]}> 
+								<MaterialCommunityIcons name="pill" color={textColor} size={18} />
+								<ThemedText style={[styles.pillBadgeText]}>Pill day</ThemedText>
+							</View>
 						) : null}
-					</LinearGradient>
+					</View>
 
-					{/* Today entry card */}
-					<Card>
-						<ThemedText style={styles.cardTitle}>Today&apos;s Entry</ThemedText>
-						<View style={styles.rowBetween}>
-							<Label>Take pill</Label>
-							<Pressable onPress={onTogglePill} style={({ pressed }) => [styles.switchPill, { borderColor: border, backgroundColor: pressed ? card : 'transparent' }]}>
-								<Ionicons name={entry?.pillTaken ? 'checkmark-circle' : 'ellipse-outline'} size={26} color={entry?.pillTaken ? tint : text} />
-							</Pressable>
+					{/* Flow */}
+					<View style={styles.section}> 
+						<ThemedText style={styles.sectionLabel}>Flow</ThemedText>
+						<View style={styles.segmentRow}>
+							{[BloodFlow.None, BloodFlow.Light, BloodFlow.Medium, BloodFlow.Heavy].map((f) => {
+								const active = (entry?.bloodFlow ?? BloodFlow.None) === f;
+								const c = flowPalette[f].color;
+								return (
+									<Pressable key={f} onPress={() => setFlow(f)} style={[styles.segmentBtn, {
+										borderColor: active ? c : borderColor,
+										backgroundColor: active ? (Platform.OS === 'ios' ? c + '33' : c + '22') : 'transparent'
+									}]}>
+										<ThemedText style={[styles.segmentText]}>{flowPalette[f].label}</ThemedText>
+									</Pressable>
+								);
+							})}
 						</View>
+					</View>
 
-						<View style={[styles.section, { borderTopColor: border }]}>
-							<Label>Blood flow</Label>
-							<View style={styles.flowRow}>
-								{(
-									[
-										{ label: 'None', val: BloodFlow.None, icon: 'water-off' as const },
-										{ label: 'Light', val: BloodFlow.Light, icon: 'water-outline' as const },
-										{ label: 'Medium', val: BloodFlow.Medium, icon: 'water' as const },
-										{ label: 'Heavy', val: BloodFlow.Heavy, icon: 'water-plus' as const },
-									]
-								).map(item => (
-									<Chip
-										key={item.label}
-										active={entry?.bloodFlow === item.val}
-										onPress={() => onSetFlow(item.val)}
-										icon={<MaterialCommunityIcons name={item.icon} size={18} color={entry?.bloodFlow === item.val ? '#fff' : text} />}
-										label={item.label}
-										tint={tint}
-										border={border}
-										textColor={text}
-									/>
-								))}
-							</View>
+					{/* Pill quick toggle */}
+					<View style={[styles.section, styles.rowBetween]}> 
+						<View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+							<MaterialCommunityIcons name="pill" size={20} color={pillDue ? highlight : textColor} />
+							<ThemedText style={styles.sectionLabel}>Pill</ThemedText>
+							{pillExpectation === 'pill' && (
+								<ThemedText style={[styles.muted, { color: textColor }]}>
+									{pillDue ? 'Take today' : 'Expected today'}
+								</ThemedText>
+							)}
 						</View>
+						<Pressable onPress={togglePill} style={[styles.toggleBtn, {
+							borderColor: pillDue ? highlight : borderColor,
+							backgroundColor: (entry?.pillTaken ? (themeName === 'dark' ? '#1f6f3a' : '#e6f4ea') : 'transparent'),
+						}]}>
+							<ThemedText style={[styles.toggleText, { color: entry?.pillTaken ? (themeName === 'dark' ? '#9ef0b5' : '#137333') : textColor }]}> 
+								{entry?.pillTaken ? 'Taken' : 'Mark taken'}
+							</ThemedText>
+						</Pressable>
+					</View>
 
-						<View style={[styles.section, { borderTopColor: border }]}>
-							<Label>Symptoms</Label>
-							<View style={styles.flowRow}>
-								{(
-									[
-										{ key: 'cramps' as SymptomKey, icon: 'alpha-c-circle-outline' as const, label: 'Cramps' },
-										{ key: 'headache' as SymptomKey, icon: 'head-flash-outline' as const, label: 'Headache' },
-										{ key: 'vomiting' as SymptomKey, icon: 'emoticon-sick-outline' as const, label: 'Nausea' },
-										{ key: 'moodChanges' as SymptomKey, icon: 'emoticon-neutral-outline' as const, label: 'Mood' },
-									]
-								).map(s => {
-									const active = (entry?.symptoms ?? []).includes(s.key);
-									return (
-										<Chip
-											key={s.key}
-											active={active}
-											onPress={() => onToggleSymptom(s.key)}
-											icon={<MaterialCommunityIcons name={s.icon} size={18} color={active ? '#fff' : text} />}
-											label={s.label}
-											tint={tint}
-											border={border}
-											textColor={text}
-										/>
-									);
-								})}
-							</View>
+					{/* Symptoms */}
+					<View style={styles.section}> 
+						<ThemedText style={styles.sectionLabel}>Symptoms</ThemedText>
+						<View style={styles.chipsWrap}>
+							{SYMPTOMS.map((s) => {
+								const active = (entry?.symptoms ?? []).includes(s);
+								return (
+									<Pressable key={s} onPress={() => toggleSymptom(s)} style={[styles.chip, {
+										borderColor: active ? tint : borderColor,
+										backgroundColor: active ? tint + '22' : 'transparent',
+									}]}>
+										<ThemedText style={styles.chipText}>{labelForSymptom(s)}</ThemedText>
+									</Pressable>
+								);
+							})}
 						</View>
-					</Card>
-
-					{/* Pill cycle card */}
-					<Card>
-						<ThemedText style={styles.cardTitle}>Pill Cycle</ThemedText>
-						{pillCfg && pillState ? (
-							<View>
-								<View style={styles.rowBetween}>
-									<Label>Day of cycle</Label>
-									<ThemedText style={styles.valueText}>{pillState.dayOfCycle ?? '—'}</ThemedText>
-								</View>
-								<View style={[styles.tagsRow, { marginTop: 8 }]}>
-									<Tag color={pillState.isBreakDay ? border : tint} text={pillState.isBreakDay ? 'Break day' : 'Active pill day'} icon={pillState.isBreakDay ? 'pause' : 'play'} />
-									{!entry?.pillTaken && pillState.isPillDay ? (
-										<Tag color={error} text="Pill due" icon="alert" />
-									) : null}
-								</View>
-								<View style={[styles.section, { borderTopColor: border }]}>
-									{pillState.isBreakDay ? (
-										<ThemedText>Break ends {pillState.currentBreakEnds ? `on ${shortDateFmt.format(new Date(pillState.currentBreakEnds))}` : '—'}</ThemedText>
-									) : (
-										<ThemedText>Next break starts {pillState.nextBreakStart ? `on ${shortDateFmt.format(new Date(pillState.nextBreakStart))}` : '—'}</ThemedText>
-									)}
-								</View>
+					</View>
+				</View>
+				{/* Forecast card */}
+				<View style={[styles.card, { backgroundColor: cardBg, borderColor }]}> 
+					<ThemedText style={styles.cardTitle}>Insights</ThemedText>
+					{/* Fertility */}
+					<View style={{ gap: 4}}>
+						{fertilityInfo ? (
+							<>
+							<View style={[styles.rowBetween]}> 
+								<ThemedText style={styles.subtleTitle}>Fertile window: </ThemedText>
+								<ThemedText style={styles.subtleValue}>
+									{formatHuman(fertilityInfo.windowStart)} – {formatHuman(fertilityInfo.windowEnd)}
+								</ThemedText>
 							</View>
+							<View style={[styles.rowBetween]}> 
+								<ThemedText style={styles.subtleTitle}>Current fertility: </ThemedText>
+								<ThemedText style={styles.subtleValue}>
+									{fertilityInfo.todayStatus === 'high' ? 'High fertility' : fertilityInfo.todayStatus === 'moderate' ? 'Moderate fertility' : 'Low fertility'}{fertilityInfo.todayStatus !== 'low' ? ` (ovulation ~ ${formatHuman(fertilityInfo.ovulation)})` : ''}
+								</ThemedText>
+							</View>
+							</>
 						) : (
-							<ThemedText style={{ opacity: 0.8 }}>Configure pill cycle to see details</ThemedText>
+							<ThemedText style={styles.subtleTitle}>Fertility: Not enough data</ThemedText>
 						)}
-					</Card>
-
-					{/* Fertility card */}
-					<Card>
-						<ThemedText style={styles.cardTitle}>Fertility</ThemedText>
-						{fertility ? (
-							<View>
-								<View style={styles.rowBetween}>
-									<Label>Cycle day</Label>
-									<ThemedText style={styles.valueText}>{fertility.cycleDay ?? '—'}</ThemedText>
-								</View>
-												<View style={[styles.tagsRow, { marginTop: 8 }]}>
-													<Tag
-														color={
-															fertility.status === 'ovulation' ? tint : fertility.status === 'fertile' ? border : text
-														}
-														text={
-															fertility.status === 'ovulation' ? 'Ovulation likely' : fertility.status === 'fertile' ? 'Fertile window' : fertility.status === 'low' ? 'Low fertility' : 'Unknown'
-														}
-														icon={
-															fertility.status === 'ovulation'
-																? 'sunny-outline'
-																: fertility.status === 'fertile'
-																? 'flame-outline'
-																: fertility.status === 'low'
-																? 'leaf-outline'
-																: 'help-circle-outline'
-														}
-													/>
-												</View>
-								<View style={[styles.section, { borderTopColor: border }]}>
-									{fertility.fertileWindow ? (
-										<ThemedText>
-											Window: {shortDateFmt.format(new Date(fertility.fertileWindow.start))} – {shortDateFmt.format(new Date(fertility.fertileWindow.end))}
-										</ThemedText>
-									) : (
-										<ThemedText>No recent cycle start found</ThemedText>
-									)}
-								</View>
-							</View>
-						) : (
-							<ThemedText style={{ opacity: 0.8 }}>Add blood flow entries to estimate fertility</ThemedText>
-						)}
-					</Card>
-
-					{errorMsg ? (
-						<ThemedText style={{ color: error, textAlign: 'center', marginTop: 12 }}>{errorMsg}</ThemedText>
-					) : null}
-				</ScrollView>
-			</Animated.View>
+					</View>
+					{/* Next period */}
+					<View style={[styles.rowBetween, { marginTop: 8 }]}> 
+						<ThemedText style={styles.subtleTitle}>Next period</ThemedText>
+						<ThemedText style={styles.subtleValue}>
+							{predictedNextPeriod ? formatHuman(predictedNextPeriod) : 'Not enough data'}
+						</ThemedText>
+					</View>
+					
+				</View>
+			</ScrollView>
 		</ThemedView>
 	);
 }
 
-// UI building blocks
-function Card({ children }: { children: React.ReactNode }) {
-	const card = useThemeColor({}, 'card');
-	const border = useThemeColor({}, 'border');
-	return (
-		<View style={[styles.card, { backgroundColor: card, borderColor: border }]}>
-			{children}
-		</View>
-	);
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-	return <ThemedText style={styles.label}>{children}</ThemedText>;
-}
-
-function Tag({ color, text, icon }: { color: string; text: string; icon: keyof typeof Ionicons.glyphMap }) {
-	return (
-		<View style={[styles.tag, { backgroundColor: color }]}>
-			<Ionicons name={icon} size={14} color={'#fff'} style={{ marginRight: 6 }} />
-			<ThemedText style={{ color: '#fff', fontWeight: '600' }}>{text}</ThemedText>
-		</View>
-	);
-}
-
-function Chip({ active, onPress, icon, label, tint, border, textColor }: {
-	active: boolean;
-	onPress: () => void;
-	icon?: React.ReactNode;
-	label: string;
-	tint: string;
-	border: string;
-	textColor: string;
-}) {
-	const scale = useRef(new Animated.Value(1)).current;
-	const animate = (to: number) => Animated.spring(scale, { toValue: to, useNativeDriver: true, friction: 5, tension: 180 }).start();
-	return (
-		<Pressable
-			onPress={() => {
-				animate(0.95);
-				onPress();
-				setTimeout(() => animate(1), 80);
-			}}
-			style={({ pressed }) => [
-				styles.chip,
-				{
-					borderColor: active ? 'transparent' : border,
-					backgroundColor: active ? tint : 'transparent',
-					opacity: pressed ? 0.9 : 1,
-				},
-			]}
-		>
-			<Animated.View style={{ transform: [{ scale }] }}>
-				<View style={styles.chipInner}>
-					{icon}
-					<ThemedText style={{ marginLeft: icon ? 6 : 0, color: active ? '#fff' : textColor }}>{label}</ThemedText>
-				</View>
-			</Animated.View>
-		</Pressable>
-	);
-}
-
-// Logic helpers
-function computePillState(cfg: PillConfig, day: Date): PillState {
-	const total = cfg.cycleLength + cfg.breakLength;
-	if (!cfg.firstPillDate || total <= 0) return { dayOfCycle: null, isPillDay: null, isBreakDay: null, nextBreakStart: null, currentBreakEnds: null };
-	const start = new Date(cfg.firstPillDate);
-	const diff = Math.floor((stripTime(day).getTime() - stripTime(start).getTime()) / 86400000);
-	const dayIndex = mod(diff, total); // 0-based within cycle
-	const dayOfCycle = dayIndex + 1;
-	const isBreakDay = dayIndex >= cfg.cycleLength;
-	const isPillDay = !isBreakDay; // pills on active days
-
-	const nextBreakStartIndex = cfg.cycleLength; // index when break begins
-	const cyclesSince = Math.floor(diff / total);
-	const currentCycleStart = addDays(start, cyclesSince * total);
-	const nextBreakStartDate = addDays(currentCycleStart, nextBreakStartIndex);
-	const breakEndDate = addDays(nextBreakStartDate, cfg.breakLength);
-
-	const inCurrentCycle = diff >= cyclesSince * total && diff < (cyclesSince + 1) * total;
-	const nextBreakStart = inCurrentCycle && dayIndex < nextBreakStartIndex ? toLocalDateKey(nextBreakStartDate) : (dayIndex >= nextBreakStartIndex ? toLocalDateKey(addDays(currentCycleStart, total)) : toLocalDateKey(nextBreakStartDate));
-	const currentBreakEnds = isBreakDay ? toLocalDateKey(breakEndDate) : null;
-
-	return { dayOfCycle, isBreakDay, isPillDay, nextBreakStart, currentBreakEnds };
-}
-
-async function computeFertility(storage: Awaited<ReturnType<typeof createSQLiteStorage>>): Promise<FertilityInfo> {
-	// Look back 120 days to infer last flow start
-	const end = stripTime(new Date());
-	const start = addDays(end, -120);
-	const entries = await storage.listEntriesInRange(start, end);
-	const map = new Map(entries.map(e => [e.date, e] as const));
-
-	let lastStart: string | null = null;
-	for (let i = 0; i < entries.length; i++) {
-		const e = entries[i];
-		if ((e.bloodFlow ?? BloodFlow.None) > BloodFlow.None) {
-			const prev = map.get(toLocalDateKey(addDays(new Date(e.date), -1)));
-			const prevFlow = prev?.bloodFlow ?? BloodFlow.None;
-			if (prevFlow === BloodFlow.None) {
-				// candidate start
-				if (!lastStart || new Date(e.date) > new Date(lastStart)) {
-					lastStart = e.date;
-				}
-			}
-		}
+function labelForSymptom(k: SymptomKey): string {
+	switch (k) {
+		case 'cramps': return 'Cramps';
+		case 'vomiting': return 'Nausea';
+		case 'headache': return 'Headache';
+		case 'moodChanges': return 'Mood';
+		default: return k;
 	}
-
-	if (!lastStart) return { cycleStart: null, cycleDay: null, status: 'unknown', fertileWindow: null, ovulationDay: null };
-
-	const d0 = new Date(lastStart);
-	const today = stripTime(new Date());
-	const cycleDay = Math.max(1, Math.floor((today.getTime() - d0.getTime()) / 86400000) + 1);
-	const ovulationOffset = 14 - 1; // day 14 => index 13
-	const fertileStartOffset = 12 - 1;
-	const fertileEndOffset = 16 - 1;
-	const ovulationDay = toLocalDateKey(addDays(d0, ovulationOffset));
-	const fertileWindow = { start: toLocalDateKey(addDays(d0, fertileStartOffset)), end: toLocalDateKey(addDays(d0, fertileEndOffset)) };
-
-	let status: FertilityInfo['status'] = 'low';
-	const todayKey = toLocalDateKey(today);
-	if (todayKey === ovulationDay) status = 'ovulation';
-	else if (todayKey >= fertileWindow.start && todayKey <= fertileWindow.end) status = 'fertile';
-
-	return { cycleStart: lastStart, cycleDay, status, fertileWindow, ovulationDay };
 }
-
-// date helpers
-function stripTime(d: Date) { const dt = new Date(d); dt.setHours(0,0,0,0); return dt; }
-function addDays(d: Date, n: number) { const dt = new Date(d); dt.setDate(dt.getDate() + n); return dt; }
-function mod(n: number, m: number) { return ((n % m) + m) % m; }
 
 const styles = StyleSheet.create({
-	scrollContent: {
-		padding: 16,
-		gap: 12,
+	container: {
+		flex: 1,
 	},
-	headerGrad: {
-		borderRadius: 16,
-		padding: 16,
-	},
-	headerRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
+	header: {
+		paddingHorizontal: 16,
+		paddingBottom: 12,
+		borderBottomWidth: StyleSheet.hairlineWidth,
 	},
 	headerTitle: {
-		fontSize: 20,
+		fontSize: 22,
 		fontWeight: '700',
-	},
-	pillBanner: {
-		marginTop: 12,
-		borderRadius: 12,
-		paddingVertical: 10,
-		paddingHorizontal: 12,
-		flexDirection: 'row',
-		alignItems: 'center',
-		borderWidth: 1,
-	},
-	pillBannerText: {
-		fontSize: 14,
-		fontWeight: '600',
 	},
 	card: {
-		borderRadius: 16,
+		margin: 16,
 		padding: 14,
-		borderWidth: 1,
+		borderRadius: 12,
+		borderWidth: StyleSheet.hairlineWidth,
+		gap: 12,
 	},
 	cardTitle: {
-		fontSize: 16,
+		fontSize: 18,
 		fontWeight: '700',
-		marginBottom: 8,
+	},
+	muted: {
+		fontSize: 12,
 	},
 	rowBetween: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'space-between',
 	},
-	label: {
-		fontSize: 14,
-		opacity: 0.8,
-	},
-	valueText: {
-		fontSize: 16,
-		fontWeight: '700',
-	},
 	section: {
-		marginTop: 10,
-		paddingTop: 10,
-		borderTopWidth: StyleSheet.hairlineWidth,
-	},
-	switchPill: {
-		paddingHorizontal: 10,
-		paddingVertical: 6,
-		borderRadius: 999,
-		borderWidth: 1,
-	},
-	flowRow: {
-		flexDirection: 'row',
-		flexWrap: 'wrap',
 		gap: 8,
-		marginTop: 8,
 	},
-	chip: {
-		borderRadius: 999,
-		borderWidth: 1,
+	sectionLabel: {
+		fontSize: 15,
+		fontWeight: '600',
 	},
-	chipInner: {
+	segmentRow: {
 		flexDirection: 'row',
-		alignItems: 'center',
+		gap: 8,
+	},
+	segmentBtn: {
 		paddingHorizontal: 12,
 		paddingVertical: 8,
+		borderRadius: 8,
+		borderWidth: StyleSheet.hairlineWidth,
 	},
-	tagsRow: {
+	segmentText: {
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	chipsWrap: {
 		flexDirection: 'row',
 		flexWrap: 'wrap',
 		gap: 8,
 	},
-	tag: {
+	chip: {
 		paddingHorizontal: 10,
 		paddingVertical: 6,
+		borderRadius: 16,
+		borderWidth: StyleSheet.hairlineWidth,
+	},
+	chipText: {
+		fontSize: 14,
+		fontWeight: '500',
+	},
+	toggleBtn: {
+		paddingHorizontal: 12,
+		paddingVertical: 8,
 		borderRadius: 8,
+		borderWidth: StyleSheet.hairlineWidth,
+	},
+	toggleText: {
+		fontSize: 14,
+		fontWeight: '600',
+	},
+	subtleTitle: {
+		fontSize: 14,
+		opacity: 0.9,
+		fontWeight: '600',
+	},
+	subtleValue: {
+		fontSize: 14,
+		fontWeight: '700',
+	},
+	pillBadge: {
 		flexDirection: 'row',
 		alignItems: 'center',
+		gap: 6,
+		paddingHorizontal: 10,
+		paddingVertical: 6,
+		borderRadius: 999,
+		borderWidth: StyleSheet.hairlineWidth,
+	},
+	pillBadgeText: {
+		fontSize: 12,
+		fontWeight: '700',
 	},
 });

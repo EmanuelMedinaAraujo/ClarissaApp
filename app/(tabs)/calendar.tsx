@@ -6,17 +6,18 @@ import { BloodFlow, Entry, SymptomKey, toLocalDateKey } from '@/data/models/mens
 import { createSQLiteStorage, type PillConfig } from '@/data/storage/sqliteStorage';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { AppEvents, events } from '@/logic/eventBus';
+import { useIsFocused } from '@react-navigation/native';
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Keyboard,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Switch,
-    TextInput,
-    TouchableOpacity,
-    View,
+	Keyboard,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	StyleSheet,
+	Switch,
+	TextInput,
+	TouchableOpacity,
+	View,
 } from 'react-native';
 import { Calendar, type DateData } from 'react-native-calendars';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -123,6 +124,39 @@ export default function CalendarScreen() {
 			});
 			return off;
 		}, []);
+
+		// When the calendar tab is focused, refresh all data from storage so the UI
+		// always shows the latest entries and pill config.
+		const isFocused = useIsFocused();
+		useEffect(() => {
+			if (!isFocused || !storageRef.current) return;
+			let mounted = true;
+			(async () => {
+				try {
+					const s = storageRef.current!;
+					// reload pill config
+					const cfg = await s.getPillConfig();
+					if (mounted) setPillCfg(cfg);
+					// reload entries for visible month
+					const start = startOfMonth(visible.year, visible.month1);
+					const end = endOfMonth(visible.year, visible.month1);
+					const rows = await s.listEntriesInRange(start, end);
+					if (mounted) setEntries(rows);
+					// if an entry is currently open in the editor, reload it into the form
+					if (mounted && editingKey) {
+						const existing = await s.getEntryByData(editingKey);
+						if (!mounted) return;
+						setFormFlow(existing?.bloodFlow ?? BloodFlow.None);
+						setFormSymptoms(new Set(existing?.symptoms ?? []));
+						setFormNotes(existing?.notes ?? '');
+						setFormPill(existing?.pillTaken ?? false);
+					}
+				} catch (e) {
+					// ignore errors; best-effort refresh
+				}
+			})();
+			return () => { mounted = false; };
+		}, [isFocused, visible.year, visible.month1, editingKey]);
 
 		// Helper: compare ISO date keys
 		const isKeyOnOrAfter = useCallback((a: string, b: string) => a >= b, []);

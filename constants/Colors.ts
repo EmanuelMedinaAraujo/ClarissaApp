@@ -29,7 +29,7 @@ export const Colors = {
     background: '#8B2332', // rich wine red, less harsh than #7b1f2b
     tint: '#FF3B47', // vivid red accent for highlights
     tabIconDefault: '#fff', // non-selected tab icons are white
-  tabIconSelected: '#FF3B47', // vivid red accent for selected tab icon
+    tabIconSelected: '#FF3B47', // vivid red accent for selected tab icon
     border: '#A82C3A', // strong border, not too dark
     card: '#A94457', // lighter, warm red for cards
     error: '#FF1744', // standard error red
