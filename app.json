@@ -10,8 +10,7 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.clarissazierl.ClarissaApp",
-      "deploymentTarget": "18.0"
+      "bundleIdentifier": "com.clarissazierl.ClarissaApp"
     },
     "android": {
       "adaptiveIcon": {
