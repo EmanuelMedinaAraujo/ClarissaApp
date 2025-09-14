@@ -2,21 +2,24 @@
   "expo": {
     "name": "ClarissaApp",
     "slug": "ClarissaApp",
-    "version": "1.0.0",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "clarissaapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.clarissazierl.ClarissaApp",
+      "deploymentTarget": "18.0"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.clarissazierl.ClarissaApp"
     },
     "web": {
       "bundler": "metro",
@@ -34,8 +37,7 @@
           "backgroundColor": "#ffffff"
         }
       ],
-  "expo-sqlite",
-  "expo-notifications"
+      "expo-sqlite",
     ],
     "experiments": {
       "typedRoutes": true
