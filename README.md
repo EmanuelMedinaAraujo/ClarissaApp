@@ -1,3 +1,58 @@
+
+## Demo
+
+<sub>If the gallery is long, scroll down to see all screenshots.</sub>
+
+
+### Home
+<div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;">
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/home_dark.png" alt="Home – Dark" width="300" />
+		<figcaption>Dark mode</figcaption>
+	</figure>
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/home_light.png" alt="Home – Light" width="300" />
+		<figcaption>Light mode</figcaption>
+	</figure>
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/home_red.png" alt="Home – Red" width="300" />
+		<figcaption>Red mode</figcaption>
+	</figure>
+</div>
+
+### Calendar
+<div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;">
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/calendar_dark.png" alt="Calendar – Dark" width="300" />
+		<figcaption>Dark mode</figcaption>
+	</figure>
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/calendar_light.png" alt="Calendar – Light" width="300" />
+		<figcaption>Light mode</figcaption>
+	</figure>
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/calendar_red.png" alt="Calendar – Red" width="300" />
+		<figcaption>Red mode</figcaption>
+	</figure>
+</div>
+
+### Profile
+<div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;">
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/Profile_dark.png" alt="Profile – Dark" width="300" />
+		<figcaption>Dark mode</figcaption>
+	</figure>
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/Profile_light.png" alt="Profile – Light" width="300" />
+		<figcaption>Light mode</figcaption>
+	</figure>
+	<figure style="text-align: center;">
+		<img src="assets/images/Demo/Profile_red.png" alt="Profile – Red" width="300" />
+		<figcaption>Red mode</figcaption>
+	</figure>
+</div>
+
+
 # Clarissa App Outline
 
 This app is for my girlfriend Clarissa developed by me (Emanuel).
@@ -64,6 +119,8 @@ In the future, I plan to add more features such as:
  - **Connect Partner**: Enable Clarissa to connect with me through the app, allowing us to share milestones and current point of the menstrual cycle.
  - **Integration with Other Apps**: Allow Clarissa to connect the app with other tools she uses for a seamless experience.
  - **Lock**: Lock the app with a PIN or biometric authentication for added security.
+
+
 
 # Development Environment
 This app is built using React Native and TypeScript, leveraging the Expo framework for development and deployment.
