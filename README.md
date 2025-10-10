@@ -8,15 +8,12 @@
 <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;">
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/home_dark.png" alt="Home – Dark" width="300" />
-		<figcaption>Dark mode</figcaption>
 	</figure>
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/home_light.png" alt="Home – Light" width="300" />
-		<figcaption>Light mode</figcaption>
 	</figure>
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/home_red.png" alt="Home – Red" width="300" />
-		<figcaption>Red mode</figcaption>
 	</figure>
 </div>
 
@@ -24,15 +21,12 @@
 <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;">
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/calendar_dark.png" alt="Calendar – Dark" width="300" />
-		<figcaption>Dark mode</figcaption>
 	</figure>
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/calendar_light.png" alt="Calendar – Light" width="300" />
-		<figcaption>Light mode</figcaption>
 	</figure>
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/calendar_red.png" alt="Calendar – Red" width="300" />
-		<figcaption>Red mode</figcaption>
 	</figure>
 </div>
 
@@ -40,15 +34,12 @@
 <div style="display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px;">
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/Profile_dark.png" alt="Profile – Dark" width="300" />
-		<figcaption>Dark mode</figcaption>
 	</figure>
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/Profile_light.png" alt="Profile – Light" width="300" />
-		<figcaption>Light mode</figcaption>
 	</figure>
 	<figure style="text-align: center;">
 		<img src="assets/images/Demo/Profile_red.png" alt="Profile – Red" width="300" />
-		<figcaption>Red mode</figcaption>
 	</figure>
 </div>
 
